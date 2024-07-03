@@ -83,19 +83,15 @@ async def load_html_document(response: Response, request: Request) -> str | None
         return None
 
     armclass = reqv_body['armclass']
-    save_document = reqv_body['save_document']
 
     response.status_code = 200
     html = await get_html_document(armclass)
 
-    if save_document:
-        filename = 'data/document.html'
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        with open(filename, 'w', encoding='utf-8') as file:
-            file.write(html)
-        return f"File saved to: {os.path.abspath(filename)}"
-
-    return html
+    filename = 'data/document.html'
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, 'w', encoding='utf-8') as file:
+        file.write(html)
+    return f"File saved to: {os.path.abspath(filename)}"
 
 
 async def get_data_from_file(path_to_document: str) -> dict:
