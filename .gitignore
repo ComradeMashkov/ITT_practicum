@@ -1,2 +1,6 @@
 .idea/
+.DS_Store
 src/__pycache__/
+src/data
+src/images
+src/test.py
