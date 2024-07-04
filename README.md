@@ -31,7 +31,7 @@
 3. **POST** `/download_images`:
 ```json
 {
-  "armour_names": ["Т-72А", ...],
+  "armour_names": ["Т-72А", "..."],
   "path_to_images": ""
 }
 ```
