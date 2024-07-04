@@ -82,19 +82,20 @@ async def load_html_document(response: Response, request: Request) -> str | None
         print('Invalid JSON request')
         return None
 
+    path_to_document = reqv_body['path_to_document'] + '/document.html'
     armclass = reqv_body['armclass']
 
-    response.status_code = 200
     html = await get_html_document(armclass)
 
-    filename = 'data/document.html'
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with open(filename, 'w', encoding='utf-8') as file:
+    os.makedirs(os.path.dirname(path_to_document), exist_ok=True)
+    with open(path_to_document, 'w', encoding='utf-8') as file:
         file.write(html)
-    return f"File saved to: {os.path.abspath(filename)}"
+
+    response.status_code = 200
+    return f"File saved to: {os.path.abspath(path_to_document)}"
 
 
-async def get_data_from_file(path_to_document: str) -> dict:
+async def get_data_from_file(path_to_document: str) -> dict[str, tuple[str, list]]:
     soup = BeautifulSoup(open(path_to_document, encoding='utf-8'), 'html.parser')
     a_tags = soup.find_all('a', attrs={'data-caption': True})
 
@@ -119,28 +120,32 @@ async def get_data_from_file(path_to_document: str) -> dict:
 
 
 async def store_lostarmour_data(path_to_document: str) -> None:
-    uri = "mongodb://%s:%s@%s" % (
-        quote_plus('user'), quote_plus('pass'), 'localhost:27017')
-    client = pymongo.MongoClient(uri)
-    db = client["lostarmour_store"]
-    collection = db["tanks"]
+    try:
+        uri = "mongodb://%s:%s@%s" % (
+            quote_plus('user'), quote_plus('pass'), 'localhost:27017')
+        client = pymongo.MongoClient(uri)
+        db = client["lostarmour_store"]
+        collection = db["tanks"]
 
-    document = await get_data_from_file(path_to_document)
+        document = await get_data_from_file(path_to_document)
 
-    for armour_id, params in document.items():
-        mongo_structure = {
-            "id": armour_id,
-            "name": params[0],
-            "url": ';'.join(params[1])
-        }
+        for armour_id, params in document.items():
+            mongo_structure = {
+                "id": armour_id,
+                "name": params[0],
+                "url": ';'.join(params[1])
+            }
 
-        collection.insert_one(mongo_structure)
+            collection.insert_one(mongo_structure)
 
-    client.close()
+        client.close()
+
+    except Exception as e:
+        print('An error occurred', e)
 
 
 @app.post("/cache_lostarmour_data")
-async def cache_lostarmour_data(response: Response, request: Request):
+async def cache_lostarmour_data(response: Response, request: Request) -> None:
     try:
         reqv_body = await request.json()
     except json.decoder.JSONDecodeError:
@@ -150,6 +155,7 @@ async def cache_lostarmour_data(response: Response, request: Request):
 
     path_to_document = reqv_body['path_to_document']
 
+    response.status_code = 200
     await store_lostarmour_data(path_to_document)
 
 
@@ -166,7 +172,7 @@ async def process_cached_data(armour_names: list):
 
 
 @app.post("/download_images")
-async def download_images(response: Response, request: Request):
+async def download_images(response: Response, request: Request) -> str | None:
     try:
         reqv_body = await request.json()
     except json.decoder.JSONDecodeError:
@@ -174,56 +180,21 @@ async def download_images(response: Response, request: Request):
         print('Invalid JSON request')
         return None
 
+    path_to_images = reqv_body['path_to_images']
     armour_name = reqv_body['armour_names']
-
-    train_ratio = reqv_body['train']
-    val_ratio = reqv_body['val']
-    if train_ratio + val_ratio > 1.0:
-        response.status_code = 400
-        print('train + val must not exceed 1')
-        return
 
     documents = await process_cached_data(armour_name)
 
-    images_path = 'images/'
-    os.makedirs(os.path.dirname(images_path), exist_ok=True)
+    os.makedirs(os.path.dirname(path_to_images), exist_ok=True)
 
-    urls = list()
-    image_names = list()
     for doc in documents:
         urls_list = doc['url'].split(';')
         for cur_url in urls_list:
-            urls.append(origin + cur_url)
-            image_names.append(cur_url[12:])
-
-    total_number = len(urls)
-    train_number = int(total_number * train_ratio)
-    val_number = int(total_number * val_ratio)
-
-    train_dir = images_path + 'train/'
-    val_dir = images_path + 'val/'
-    test_dir = images_path + 'test/'
-
-    os.makedirs(os.path.dirname(train_dir), exist_ok=True)
-    os.makedirs(os.path.dirname(val_dir), exist_ok=True)
-    os.makedirs(os.path.dirname(test_dir), exist_ok=True)
-
-    for i in range(1, total_number + 1):
-        image_data = requests.get(urls[i - 1]).content
-
-        if i < train_number:
-            print(urls[i - 1], '->', os.path.abspath(train_dir) + '/' + image_names[i - 1])
-            with open(train_dir + image_names[i - 1], 'wb') as handler:
+            image_data = requests.get(origin + cur_url).content
+            image_name = cur_url[12:]
+            with open(path_to_images + image_name, 'wb') as handler:
                 handler.write(image_data)
+                print(origin + cur_url, '->', os.path.abspath(path_to_images) + '/' + image_name)
 
-        elif i < train_number + val_number:
-            print(urls[i - 1], '->', os.path.abspath(val_dir) + '/' + image_names[i - 1])
-            with open(val_dir + image_names[i - 1], 'wb') as handler:
-                handler.write(image_data)
-
-        else:
-            print(urls[i - 1], '->', os.path.abspath(test_dir) + '/' + image_names[i - 1])
-            with open(test_dir + image_names[i - 1], 'wb') as handler:
-                handler.write(image_data)
-
-    return f"Train = {train_number}, Val = {val_number}, Test = {total_number - train_number - val_number}"
+    response.status_code = 200
+    return f"Images saved to: {os.path.abspath(path_to_images)}"

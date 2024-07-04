@@ -1,6 +1,9 @@
+# Cache dirs and variables
 .idea/
 .DS_Store
 src/__pycache__/
+
+# Debug information
 src/data
 src/images
 src/test.py
