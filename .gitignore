@@ -1,12 +1,14 @@
 # Cache dirs and variables
 .idea/
 .DS_Store
+.venv/
 server/__pycache__/
 
 # Debug information
 data/
 images/
 videos/
+runs/
 
 data_processing/dataset/
 data_processing/runs/
