@@ -95,7 +95,7 @@ async def load_html_document(response: Response, request: Request) -> str | None
     return f"File saved to: {os.path.abspath(path_to_document)}"
 
 
-async def get_data_from_file(path_to_document: str) -> dict[str, tuple[str, list]]:
+async def get_data_from_file(path_to_document: str) -> dict[str, tuple[str, list, list]]:
     soup = BeautifulSoup(open(path_to_document, encoding='utf-8'), 'html.parser')
     a_tags = soup.find_all('a', attrs={'data-caption': True})
 
@@ -113,13 +113,14 @@ async def get_data_from_file(path_to_document: str) -> dict[str, tuple[str, list
     for caption in unique_captions:
         armour_id = caption[4:].replace(' - ', ':').split(':')[0]
         armour_name = caption[4:].replace(' - ', ':').split(':')[1]
-        armour_url = [href for href in hrefs if 'media' not in href and re.search('new/imagex/id(.*)-', href).group(1) == armour_id]
-        result[armour_id] = (armour_name, armour_url)
+        armour_images_url = [href for href in hrefs if 'media' not in href and re.search('new/imagex/id(.*)-', href).group(1) == armour_id]
+        armour_videos_url = [href for href in hrefs if 'media' in href and re.search('media/videos/id(.*)-', href).group(1) == armour_id]
+        result[armour_id] = (armour_name, armour_images_url, armour_videos_url)
 
     return result
 
 
-async def store_lostarmour_data(path_to_document: str) -> None:
+async def store_lostarmour_data(path_to_document: str) -> bool:
     try:
         uri = "mongodb://%s:%s@%s" % (
             quote_plus('user'), quote_plus('pass'), 'localhost:27017')
@@ -133,16 +134,19 @@ async def store_lostarmour_data(path_to_document: str) -> None:
             mongo_structure = {
                 "id": armour_id,
                 "name": params[0],
-                "url": ';'.join(params[1])
+                "url_images": ';'.join(params[1]),
+                "url_videos": ';'.join(params[2])
             }
 
             collection.insert_one(mongo_structure)
 
         client.close()
 
-    except Exception as e:
-        print('An error occurred', e)
+        return True
 
+    except Exception as e:
+        print('An error occurred:', e)
+        return False
 
 @app.post("/cache_lostarmour_data")
 async def cache_lostarmour_data(response: Response, request: Request) -> None:
@@ -155,8 +159,10 @@ async def cache_lostarmour_data(response: Response, request: Request) -> None:
 
     path_to_document = reqv_body['path_to_document']
 
-    response.status_code = 200
-    await store_lostarmour_data(path_to_document)
+    if not await store_lostarmour_data(path_to_document):
+        response.status_code = 400
+    else:
+        response.status_code = 200
 
 
 async def process_cached_data(armour_names: list):
@@ -188,7 +194,7 @@ async def download_images(response: Response, request: Request) -> str | None:
     os.makedirs(os.path.dirname(path_to_images), exist_ok=True)
 
     for doc in documents:
-        urls_list = doc['url'].split(';')
+        urls_list = doc['url_images'].split(';')
         for cur_url in urls_list:
             image_data = requests.get(origin + cur_url).content
             image_name = cur_url[12:]
@@ -198,3 +204,33 @@ async def download_images(response: Response, request: Request) -> str | None:
 
     response.status_code = 200
     return f"Images saved to: {os.path.abspath(path_to_images)}"
+
+
+@app.post("/download_videos")
+async def download_videos(response: Response, request: Request) -> str | None:
+    try:
+        reqv_body = await request.json()
+    except json.decoder.JSONDecodeError:
+        response.status_code = 400
+        print('Invalid JSON request')
+        return None
+
+    path_to_videos = reqv_body['path_to_videos']
+    armour_name = reqv_body['armour_names']
+
+    documents = await process_cached_data(armour_name)
+
+    os.makedirs(os.path.dirname(path_to_videos), exist_ok=True)
+
+    for doc in documents:
+        urls_list = doc['url_videos'].split(';')
+        for cur_url in urls_list:
+            if cur_url:
+                video_data = requests.get(origin + cur_url).content
+                video_name = cur_url[14:]
+                with open(path_to_videos + video_name, 'wb') as handler:
+                    handler.write(video_data)
+                    print(origin + cur_url, '->', os.path.abspath(path_to_videos) + '/' + video_name)
+
+    response.status_code = 200
+    return f"Videos saved to: {os.path.abspath(path_to_videos)}"

@@ -4,6 +4,10 @@
 src/__pycache__/
 
 # Debug information
-src/data
-src/images
-src/test.py
+data/
+images/
+videos/
+
+# AI training
+dataset/
+runs/
