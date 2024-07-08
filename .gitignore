@@ -1,13 +1,15 @@
 # Cache dirs and variables
 .idea/
 .DS_Store
-src/__pycache__/
+.venv/
+server/__pycache__/
 
 # Debug information
 data/
 images/
 videos/
-
-# AI training
-dataset/
 runs/
+
+data_processing/dataset/
+data_processing/runs/
+data_processing/yolov8n.pt
