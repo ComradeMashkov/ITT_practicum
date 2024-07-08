@@ -1,9 +1,13 @@
 # Cache dirs and variables
 .idea/
 .DS_Store
-src/__pycache__/
+server/__pycache__/
 
 # Debug information
-src/data
-src/images
-src/test.py
+data/
+images/
+videos/
+
+data_processing/dataset/
+data_processing/runs/
+data_processing/yolov8n.pt

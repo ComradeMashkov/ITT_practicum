@@ -58,7 +58,7 @@ python -m venv .venv
 2. Устанавливаем зависимости.
 
 ```sh
-cd src
+cd server
 pip install -r requirements.txt
 ```
 
