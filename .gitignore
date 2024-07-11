@@ -7,7 +7,7 @@ server/__pycache__/
 # Debug information
 data/
 images/
-noisy_images/
+preprocessed_data/
 videos/
 runs/
 
